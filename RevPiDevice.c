@@ -120,12 +120,6 @@ void RevPiDevice_init(void)
 	RevPiDevice_incDevCnt();
 }
 
-void RevPiDevice_finish(void)
-{
-	//pr_info("RevPiDevice_finish()\n");
-	piIoComm_finish();
-}
-
 //*************************************************************************************************
 //| Function: RevPiDevice_run
 //|
@@ -139,6 +133,7 @@ void RevPiDevice_finish(void)
 //-------------------------------------------------------------------------------------------------
 int RevPiDevice_run(void)
 {
+	SIOGeneric *pkthdr;
 	INT8U i8uDevice = 0;
 	INT32U r;
 	int retval = 0;
@@ -219,7 +214,21 @@ int RevPiDevice_run(void)
 
 	// if the user-ioctl want to send a telegram, do it now
 	if (piCore_g.pendingUserTel == true) {
-		piCore_g.statusUserTel = piIoComm_sendTelegram(&piCore_g.requestUserTel, &piCore_g.responseUserTel);
+		pkthdr = &piCore_g.requestUserTel;
+
+		pr_info("PIC:dev run:addr %d, cmd %d, len %d\n",
+				pkthdr->uHeader.sHeaderTyp1.bitAddress,
+				pkthdr->uHeader.sHeaderTyp1.bitCommand,
+				pkthdr->uHeader.sHeaderTyp1.bitLength);
+
+		piCore_g.statusUserTel = pibridge_req_io(
+				pkthdr->uHeader.sHeaderTyp1.bitAddress,
+				pkthdr->uHeader.sHeaderTyp1.bitCommand,
+				pkthdr->ai8uData,
+				pkthdr->uHeader.sHeaderTyp1.bitLength,
+				NULL,
+				0);/*currently the response is not cared by user*/
+
 		piCore_g.pendingUserTel = false;
 		up(&piCore_g.semUserTel);
 	}
@@ -243,17 +252,6 @@ TBOOL RevPiDevice_writeNextConfiguration(INT8U i8uAddress_p, MODGATECOM_IDResp *
 	} else {
 		pr_info("GetDeviceInfo: Id %d\n", pModgateId_p->i16uModulType);
 	}
-
-#if 0
-	ret_l = piIoComm_sendRS485Tel(eCmdPiIoConfigure, i8uAddress_p, NULL, 0, NULL, 0);
-	msleep(3);		// wait a while
-	if (ret_l) {
-#ifdef DEBUG_DEVICE
-		pr_err("piIoComm_sendRS485Tel(PiIoConfigure) failed %d\n", ret_l);
-#endif
-		return bFALSE;
-	}
-#endif
 
 	ret_l = piIoComm_sendRS485Tel(eCmdPiIoSetAddress, i8uAddress_p, NULL, 0, NULL, 0);
 	msleep(3);		// wait a while
@@ -350,7 +348,7 @@ TBOOL RevPiDevice_writeNextConfigurationLeft(void)
 
 void RevPiDevice_startDataexchange(void)
 {
-	INT32U ret_l = piIoComm_sendRS485Tel(eCmdPiIoStartDataExchange, MODGATE_RS485_BROADCAST_ADDR, NULL, 0, NULL, 0);
+	INT32U ret_l = pibridge_req_send_gate(MODGATE_RS485_BROADCAST_ADDR, eCmdPiIoStartDataExchange, NULL, 0);
 	msleep(90);		// wait a while
 	if (ret_l) {
 #ifdef DEBUG_DEVICE
@@ -361,7 +359,7 @@ void RevPiDevice_startDataexchange(void)
 
 void RevPiDevice_stopDataexchange(void)
 {
-	INT32U ret_l = piIoComm_sendRS485Tel(eCmdPiIoStartDataExchange, MODGATE_RS485_BROADCAST_ADDR, NULL, 0, NULL, 0);
+	INT32U ret_l = pibridge_req_send_gate(MODGATE_RS485_BROADCAST_ADDR, eCmdPiIoStartDataExchange, NULL, 0);
 	msleep(90);		// wait a while
 	if (ret_l) {
 #ifdef DEBUG_DEVICE

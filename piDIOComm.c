@@ -41,6 +41,7 @@
 #include <linux/fs.h>
 #include <linux/kthread.h>
 #include <linux/gpio.h>
+#include <linux/pibridge.h>
 
 #include <project.h>
 #include <common_define.h>
@@ -125,174 +126,132 @@ INT32U piDIOComm_Config(uint8_t i8uAddress, uint16_t i16uNumEntries, SEntryInfo 
 INT32U piDIOComm_Init(INT8U i8uDevice_p)
 {
 	int ret;
-	SIOGeneric sResponse_l;
-	INT8U i, len_l;
+	INT8U i;
 
-	pr_info_dio("piDIOComm_Init %d of %d  addr %d numCnt %d\n", i8uDevice_p, i8uConfigured_s,
-		    RevPiDevice_getDev(i8uDevice_p)->i8uAddress,
-		    i8uNumCounter[RevPiDevice_getDev(i8uDevice_p)->i8uAddress]);
+	pr_info("piDIOComm_Init %d of %d  addr %d numCnt %d\n", i8uDevice_p, i8uConfigured_s,
+			RevPiDevice_getDev(i8uDevice_p)->i8uAddress,
+			i8uNumCounter[RevPiDevice_getDev(i8uDevice_p)->i8uAddress]);
 
 	for (i = 0; i < i8uConfigured_s; i++) {
 		if (dioConfig_s[i].uHeader.sHeaderTyp1.bitAddress == RevPiDevice_getDev(i8uDevice_p)->i8uAddress) {
-			ret = piIoComm_send((INT8U *) & dioConfig_s[i], sizeof(SDioConfig));
-			if (ret == 0) {
-				len_l = 0;	// empty config telegram
-
-				ret = piIoComm_recv((INT8U *) & sResponse_l, IOPROTOCOL_HEADER_LENGTH + len_l + 1);
-				if (ret > 0) {
-					if (sResponse_l.ai8uData[len_l] ==
-					    piIoComm_Crc8((INT8U *) & sResponse_l, IOPROTOCOL_HEADER_LENGTH + len_l)) {
-						return 0;	// success
-					} else {
-						return 1;	// wrong crc
-					}
-				} else {
-					return 2;	// no response
-				}
-			} else {
-				return 3;	// could not send
+			ret = pibridge_req_io(
+					dioConfig_s[i].uHeader.sHeaderTyp1.bitAddress,
+					dioConfig_s[i].uHeader.sHeaderTyp1.bitCommand,
+					((SIOGeneric *)&dioConfig_s[i])->ai8uData,
+					dioConfig_s[i].uHeader.sHeaderTyp1.bitLength,
+					NULL,
+					0);
+			if (ret){
+				pr_err("piDIOComm_Init ret %d\n", ret);
+				return 1;
 			}
 		}
 	}
-
-	return 4;		// unknown device
+	pr_info("piDIOComm:%d\n", piCore_g.eBridgeState);
+	return 0;
 }
+
+#define DIO_PIN_COUNT 16
+#define DIO_ENCODER_MAX	8
+
+#define DIO_OUTPUT_BUF_PWM (DIO_PIN_COUNT * sizeof(u8))
+#define DIO_OUTPUT_BUF_MAX  (DIO_OUTPUT_BUF_PWM + sizeof(u16))
+
+#pragma pack(push, 1)
+struct dio_pwm_hdr {
+	u16     output;
+	u16     channels;
+};
+
+struct dio_pwm {
+	struct 	dio_pwm_hdr 	hdr;
+	u8     			value[DIO_PIN_COUNT];
+};
+struct dio_resp_hdr {
+	u16	input;
+	u16 	output;
+	u16 	mod_status;
+};
+struct dio_resp {
+	struct dio_resp_hdr	hdr;
+	u32 			counter[DIO_ENCODER_MAX];
+};
+#pragma pack(pop)
 
 INT32U piDIOComm_sendCyclicTelegram(INT8U i8uDevice_p)
 {
-	INT32U i32uRv_l = 0;
-	SIOGeneric sRequest_l;
-	SIOGeneric sResponse_l;
-	INT8U len_l, data_out[18], i, p, data_in[70];
-	INT8U i8uAddress;
+	static u8 last_out[40][DIO_OUTPUT_BUF_PWM];
+	u8 buf_out[DIO_OUTPUT_BUF_MAX];
+	struct dio_resp	*img_input;
+	struct dio_resp	buf_resp;
+	u16 sndlen;
+	u16 rcvlen;
 	int ret;
-	static INT8U last_out[40][18];
-#ifdef DEBUG_DEVICE_IO
-	static INT32U good, bad;
-#endif
-#ifdef DEBUG_DEVICE_DIO
-	static INT8U last_in[40][2];
-#endif
-
-	if (RevPiDevice_getDev(i8uDevice_p)->sId.i16uFBS_OutputLength != 18) {
-		return 4;
-	}
-
-	len_l = 18;
-	i8uAddress = RevPiDevice_getDev(i8uDevice_p)->i8uAddress;
+	u8 addr;
+	u8 cmd;
+	int i;
+	int p;
 
 	if (piDev_g.stopIO == false) {
 		rt_mutex_lock(&piDev_g.lockPI);
-		memcpy(data_out, piDev_g.ai8uPI + RevPiDevice_getDev(i8uDevice_p)->i16uOutputOffset, len_l);
+		memcpy(buf_out, piDev_g.ai8uPI + RevPiDevice_getDev(i8uDevice_p)->i16uOutputOffset, DIO_OUTPUT_BUF_MAX);
 		rt_mutex_unlock(&piDev_g.lockPI);
 	} else {
-		memset(data_out, 0, len_l);
+		memset(buf_out, 0, DIO_OUTPUT_BUF_MAX);
 	}
 
-	p = 255;
-	for (i = len_l; i > 0; i--) {
-		if (data_out[i - 1] != last_out[i8uAddress][i - 1]) {
-			p = i - 1;
-			break;
-		}
-	}
+	addr = RevPiDevice_getDev(i8uDevice_p)->i8uAddress;
+	rcvlen = sizeof(struct dio_resp_hdr) + i8uNumCounter[addr] * sizeof(u32);
 
-	sRequest_l.uHeader.sHeaderTyp1.bitAddress = i8uAddress;
-	sRequest_l.uHeader.sHeaderTyp1.bitIoHeaderType = 0;
-	sRequest_l.uHeader.sHeaderTyp1.bitReqResp = 0;
-
-	if (p == 255 || p < 2) {
-		// nur die direkten output bits haben sich geändert -> SDioRequest
-		len_l = sizeof(INT16U);
-		sRequest_l.uHeader.sHeaderTyp1.bitLength = len_l;
-		sRequest_l.uHeader.sHeaderTyp1.bitCommand = IOP_TYP1_CMD_DATA;
-		memcpy(sRequest_l.ai8uData, data_out, len_l);
-	} else {
-		SDioPWMOutput *pReq = (SDioPWMOutput *) & sRequest_l;
-
-		memcpy(&pReq->i16uOutput, data_out, sizeof(INT16U));
-
-		// kopiere die pwm werte die sich geändert haben
-		pReq->i16uChannels = 0;
-		p = 0;
-		for (i = 0; i < 16; i++) {
-			if (last_out[i8uAddress][i + 2] != data_out[i + 2]) {
-				pReq->i16uChannels |= 1 << i;
-				pReq->ai8uValue[p++] = data_out[i + 2];
-			}
-		}
-		len_l = p + 2 * sizeof(INT16U);
-		sRequest_l.uHeader.sHeaderTyp1.bitLength = len_l;
-		sRequest_l.uHeader.sHeaderTyp1.bitCommand = IOP_TYP1_CMD_DATA2;
-	}
-
-	sRequest_l.ai8uData[len_l] = piIoComm_Crc8((INT8U *) & sRequest_l, IOPROTOCOL_HEADER_LENGTH + len_l);
-
-#ifdef DEBUG_DEVICE_DIO
-	if (last_out[i8uAddress][0] != sRequest_l.ai8uData[0] || last_out[i8uAddress][1] != sRequest_l.ai8uData[1]) {
-		pr_info_dio("dev %2d: send cyclic Data addr %d output 0x%02x 0x%02x\n",
-			    i8uAddress, RevPiDevice_getDev(i8uDevice_p].i16uOutputOffset,
-			    sRequest_l.ai8uData[0], sRequest_l.ai8uData[1]);
-	}
-#endif
-	memcpy(last_out[i8uAddress], data_out, sizeof(data_out));
-
-	ret = piIoComm_send((INT8U *) & sRequest_l, IOPROTOCOL_HEADER_LENGTH + len_l + 1);
-	if (ret == 0) {
-		len_l = 3 * sizeof(INT16U) + i8uNumCounter[i8uAddress] * sizeof(INT32U);
-
-		ret = piIoComm_recv((INT8U *) & sResponse_l, IOPROTOCOL_HEADER_LENGTH + len_l + 1);
-		if (ret > 0) {
-			if (sResponse_l.ai8uData[len_l] ==
-			    piIoComm_Crc8((INT8U *) & sResponse_l, IOPROTOCOL_HEADER_LENGTH + len_l)) {
-				memcpy(&data_in[0], sResponse_l.ai8uData, 3 * sizeof(INT16U));
-				memset(&data_in[6], 0, 64);
-				p = 0;
-				for (i = 0; i < 16; i++) {
-					if (i16uCounterAct[i8uAddress] & (1 << i)) {
-						memcpy(&data_in[3 * sizeof(INT16U) + i * sizeof(INT32U)],
-						       &sResponse_l.ai8uData[3 * sizeof(INT16U) + p * sizeof(INT32U)],
-						       sizeof(INT32U));
-						p++;
-					}
-				}
-
-				rt_mutex_lock(&piDev_g.lockPI);
-				memcpy(piDev_g.ai8uPI + RevPiDevice_getDev(i8uDevice_p)->i16uInputOffset, data_in,
-				       sizeof(data_in));
-				rt_mutex_unlock(&piDev_g.lockPI);
-
-#ifdef DEBUG_DEVICE_DIO
-				if (last_in[i8uAddress][0] != sResponse_l.ai8uData[0]
-				    || last_in[i8uAddress][1] != sResponse_l.ai8uData[1]) {
-					last_in[i8uAddress][0] = sResponse_l.ai8uData[0];
-					last_in[i8uAddress][1] = sResponse_l.ai8uData[1];
-					pr_info_dio("dev %2d: recv cyclic Data addr %d input 0x%02x 0x%02x\n\n",
-						    i8uAddress, RevPiDevice_getDev(i8uDevice_p].i16uInputOffset,
-						    sResponse_l.ai8uData[0], sResponse_l.ai8uData[1]);
-				}
-#endif
-#ifdef DEBUG_DEVICE_IO
-				good++;
-#endif
-			} else {
-#ifdef DEBUG_DEVICE_IO
-				bad++;
-				if ((bad % 1000) == 0) {
-					pr_info("dev %2d: recv ioprotocol crc error %u/%u\n", i8uAddress, bad, good);
-				}
-#endif
-				i32uRv_l = 1;
-			}
-		} else {
-			i32uRv_l = 2;
-			pr_info_dio("dev %2d: recv ioprotocol timeout error exp %d\n",
-				    i8uAddress, IOPROTOCOL_HEADER_LENGTH + len_l + 1);
-
+	if (0 == memcmp(buf_out + 2, last_out[addr], DIO_OUTPUT_BUF_PWM)) {
+		sndlen = sizeof(u16);
+		cmd = IOP_TYP1_CMD_DATA;
+		ret = pibridge_req_io(addr, cmd, buf_out, sndlen, (u8 *)&buf_resp, rcvlen);
+		if (ret){
+			pr_err_ratelimited("io direct request error\n");
+			return -1;
 		}
 	} else {
-		i32uRv_l = 3;
-		pr_info_dio("dev %2d: send ioprotocol send error %d\n", i8uAddress, ret);
+		u8 *last = last_out[addr];
+		u8 *buf = buf_out + sizeof(u16);
+		struct dio_pwm pwm;
+		int cnt = 0;
+
+		memcpy(&pwm.hdr.output, buf_out, sizeof(pwm.hdr.output));
+		pwm.hdr.channels = 0;
+		for (i = 0; i < DIO_PIN_COUNT; i++) {
+			if (*(last + i) != *(buf + i)) {
+				pwm.hdr.channels |= 1 << i;
+				pwm.value[cnt++] = *(buf + i);
+			}
+		}
+		sndlen = cnt * sizeof(u8) + sizeof(pwm.hdr);
+		cmd = IOP_TYP1_CMD_DATA2;
+		ret = pibridge_req_io(addr, cmd, (u8 *)&pwm, sndlen,(u8 *)&buf_resp, rcvlen);
+		if (ret){
+			pr_err_ratelimited("io pwm request error\n");
+			return -2;
+		}
 	}
-	return i32uRv_l;
-}
+	memcpy(last_out[addr], buf_out + sizeof(u16), DIO_OUTPUT_BUF_MAX);
+
+	img_input = (struct dio_resp *)(piDev_g.ai8uPI + RevPiDevice_getDev(i8uDevice_p)->i16uInputOffset);
+	rt_mutex_lock(&piDev_g.lockPI);
+
+	img_input->hdr.input = buf_resp.hdr.input;
+	img_input->hdr.output = buf_resp.hdr.output;
+	img_input->hdr.mod_status = buf_resp.hdr.mod_status;
+	/* to be consistent with original code, should be not needed */
+	/*70 = 6 + 64 = 6 + sizeof(u32) * 16, currently 8 is the maximun as two pins consist one encoder. */
+	memset(img_input, 0, 70 - sizeof(struct dio_resp_hdr));
+
+	for (p = 0, i = 0; i < DIO_ENCODER_MAX; i++) {
+		if (i16uCounterAct[addr] & (1 << i)) {
+			img_input->counter[i] = buf_resp.counter[p];
+			p++;
+		}
+	}
+	rt_mutex_unlock(&piDev_g.lockPI);
+
+	return 0;
+} 
