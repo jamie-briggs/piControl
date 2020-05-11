@@ -924,3 +924,5 @@ INT32S PiBridgeMaster_FWUReset(void)
 	}
 	return -1;
 }
+
+MODULE_LICENSE("GPL");

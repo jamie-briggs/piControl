@@ -411,3 +411,5 @@ void revpi_core_fini(void)
 	else if (piDev_g.machine_type == REVPI_CONNECT)
 		gpiod_remove_lookup_table(&revpi_connect_gpios);
 }
+
+MODULE_LICENSE("GPL");

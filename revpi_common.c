@@ -247,3 +247,5 @@ out:
 	read_unlock(&tasklist_lock);
 	return ret;
 }
+
+MODULE_LICENSE("GPL");

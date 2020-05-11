@@ -713,3 +713,5 @@ int revpi_compact_reset()
 
 	return 0;
 }
+
+MODULE_LICENSE("GPL");

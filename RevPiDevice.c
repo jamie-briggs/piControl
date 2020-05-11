@@ -469,3 +469,5 @@ unsigned int RevPiDevice_getCoreOffset(void)
 {
 	return RevPiDevices_s.offset;
 }
+
+MODULE_LICENSE("GPL");

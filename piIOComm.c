@@ -655,3 +655,5 @@ INT32S piIoComm_fwuReset(int address)
 {
 	return fwuResetModule(address);
 }
+
+MODULE_LICENSE("GPL");

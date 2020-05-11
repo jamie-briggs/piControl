@@ -622,3 +622,5 @@ void revpi_gate_fini(void)
 
 	wait_event(revpi_gate_fini_wq, list_empty(&revpi_gate_connections));
 }
+
+MODULE_LICENSE("GPL");

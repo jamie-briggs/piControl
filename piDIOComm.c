@@ -296,3 +296,5 @@ INT32U piDIOComm_sendCyclicTelegram(INT8U i8uDevice_p)
 	}
 	return i32uRv_l;
 }
+
+MODULE_LICENSE("GPL");

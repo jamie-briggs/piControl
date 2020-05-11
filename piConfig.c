@@ -1109,3 +1109,5 @@ int piConfigParse(const char *filename, piDevices ** devs, piEntries ** ent, piC
 
 	return ret;
 }
+
+MODULE_LICENSE("GPL");

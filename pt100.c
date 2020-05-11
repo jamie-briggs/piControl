@@ -60,3 +60,5 @@ int GetPt100Temperature(unsigned int i16uResistance_p,
     *pi16sTemperature_p = (i16uSearchIndex_l - 200) * 10 + i16uDiff_l * 10 / i16uFullDiff_l;
     return 0;
 }
+
+MODULE_LICENSE("GPL");

@@ -440,6 +440,8 @@ char *kbUT_itoa(INT32U val, INT16S radix, INT16U len)
   return buffer;
 }
 
+MODULE_LICENSE("GPL");
+
 
 //*************************************************************************************************
 

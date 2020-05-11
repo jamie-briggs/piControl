@@ -164,3 +164,5 @@ laError:
 		printUserMsg(priv, "update firmware fail");
 	return ret;
 }
+
+MODULE_LICENSE("GPL");

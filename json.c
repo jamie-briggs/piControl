@@ -817,3 +817,5 @@ int json_parser_dom_callback(void *userdata, int type, const char *data, uint32_
     }
     return 0;
 }
+
+MODULE_LICENSE("GPL");

@@ -97,6 +97,8 @@ static ssize_t piControlWrite(struct file *file, const char __user * pBuf, size_
 static loff_t piControlSeek(struct file *file, loff_t off, int whence);
 static long piControlIoctl(struct file *file, unsigned int prg_nr, unsigned long usr_addr);
 
+MODULE_LICENSE("GPL");
+
 /******************************************************************************/
 /******************************  Global Vars  *********************************/
 /******************************************************************************/
@@ -1298,3 +1300,5 @@ static long piControlIoctl(struct file *file, unsigned int prg_nr, unsigned long
 
 module_init(piControlInit);
 module_exit(piControlCleanup);
+
+MODULE_LICENSE("GPL");
