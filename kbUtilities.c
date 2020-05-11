@@ -30,6 +30,7 @@
  *=======================================================================================
  */
 
+#include <linux/module.h>
 #include <linux/string.h>
 #include "common_define.h"
 #include <bsp/systick/systick.h>

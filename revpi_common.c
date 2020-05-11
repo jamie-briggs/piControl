@@ -8,6 +8,7 @@
  * published by the Free Software Foundation.
  */
 
+#include <linux/module.h>	// included for all kernel modules
 #include <linux/kthread.h>
 #include <linux/leds.h>
 #include <linux/sched.h>

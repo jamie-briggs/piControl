@@ -8,6 +8,7 @@
  * published by the Free Software Foundation.
  */
 
+#include <linux/module.h>	// included for all kernel modules
 #include <linux/gpio/consumer.h>
 #include <linux/gpio/machine.h>
 #include <linux/iio/consumer.h>

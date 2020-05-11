@@ -33,6 +33,7 @@
 #include <common_define.h>
 #include <bsp/systick/systick.h>
 
+#include <linux/module.h>	// included for all kernel modules
 #include <linux/ktime.h>
 #include <linux/hrtimer.h>
 

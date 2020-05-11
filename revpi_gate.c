@@ -8,6 +8,7 @@
  * published by the Free Software Foundation.
  */
 
+#include <linux/module.h>	// included for all kernel modules
 #include <linux/netdevice.h>
 #include <linux/netfilter.h>
 #include <linux/rculist.h>
