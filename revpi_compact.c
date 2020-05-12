@@ -9,6 +9,7 @@
  */
 
 #include <linux/module.h>	// included for all kernel modules
+
 #include <linux/gpio/consumer.h>
 #include <linux/gpio/machine.h>
 #include <linux/iio/consumer.h>
@@ -38,6 +39,8 @@
 
 #define IO_THREAD_PRIO	MAX_USER_RT_PRIO/2 + 8
 #define AIN_THREAD_PRIO MAX_USER_RT_PRIO/2 + 6
+
+MODULE_LICENSE("GPL");
 
 static const struct kthread_prio revpi_compact_kthread_prios[] = {
 	/* spi pump to I/O chips */
@@ -714,5 +717,3 @@ int revpi_compact_reset()
 
 	return 0;
 }
-
-MODULE_LICENSE("GPL");
