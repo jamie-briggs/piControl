@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0+
 #include <linux/sched.h>
 #include <linux/version.h>
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)

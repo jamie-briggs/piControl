@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
  * revpi_gate.c - RevPi Gate protocol
  *

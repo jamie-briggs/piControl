@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
  * pt100.c - PT100 resistance to temperature conversion
  *

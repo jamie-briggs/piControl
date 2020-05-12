@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
  * revpi_common.c - common routines for RevPi machines
  *

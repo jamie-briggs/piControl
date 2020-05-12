@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*=======================================================================================
  *
  *	       KK    KK   UU    UU   NN    NN   BBBBBB    UU    UU    SSSSSS

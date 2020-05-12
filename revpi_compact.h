@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0+
 
 #define RevPi_Compact_OFFSET_CoreTemperatur		 0	//BYTE
 #define RevPi_Compact_OFFSET_CoreFrequency		 1	//BYTE
